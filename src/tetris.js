@@ -12,12 +12,6 @@ const SHAPES = {
 		[1, 1, 1],
 		[0, 1, 0],
   ],
-	I: [
-    [0, 1, 0, 0],
-    [0, 1, 0, 0],
-    [0, 1, 0, 0],
-    [0, 1, 0, 0],
-  ],
 	L: [
     [0, 2, 0],
     [0, 2, 0],
@@ -42,7 +36,24 @@ const SHAPES = {
     [6, 6, 0],
     [0, 0, 0],
   ],
+  I: [
+    [0, 7, 0, 0],
+    [0, 7, 0, 0],
+    [0, 7, 0, 0],
+    [0, 7, 0, 0],
+  ],
 }
+
+const COLORS = [
+  null,
+  '#e1f7d5',
+  '#ffbdbd',
+  '#c9c9ff',
+  '#f1cbff',
+  '#ffffba',
+  '#baffc9',
+  '#ffb3ba',
+]
 
 const KEY_CODES = {
   LEFT: 37,
@@ -63,7 +74,7 @@ let dropInterval = 1000;
 let lastTime = 0;
 
 
-const createMatrix = (w, h) => {
+createMatrix = (w, h) => {
 	// render placed/static pieces 
 	const matrix = [];
 	while (h--) {
@@ -72,24 +83,44 @@ const createMatrix = (w, h) => {
 	return matrix;
 }
 
-const createPiece = () => {
+createPiece = () => {
+  // return a random shape
   return Object.values(SHAPES)[Object.keys(SHAPES).length * Math.random() | 0];
 }
 
 const player = {
-  matrix: createPiece(),
-  pos: { x: 5, y: 5 }
+  matrix: null,
+  pos: { x: 0, y: 0 },
+  score: 0,
 }
 
 const arena = createMatrix(12, 20);
 
-const collide = (arena, player) => {
+arenaSweep = () => {
+  let rowCount = 1;
+  outer: for (let y = arena.length - 1; y > 0; y--) {
+    for (let x = 0; x < arena[y].length; x++) {
+      if (arena[y][x] === 0) {
+        continue outer;
+      }
+    }
+
+    const row = arena.splice(y, 1)[0].fill(0);
+    arena.unshift(row);
+    y++;
+  }
+
+  player.score += rowCount * 10;
+  rowCount *= 2;
+}
+
+collide = (arena, player) => {
 	// define current piece and offset
 	const [piece, offset] = [player.matrix, player.pos];
 		
   // Check every row
   // Check every col in row
-  // There is a collision if '1' in the piece + arean at the same place
+  // There is a collision if '1' in the piece + arena at the same place
 	for (let y = 0; y < piece.length; y++ ) {
 		for (let x = 0; x < piece[y].length; x++) {
       const collisionDefinition = 
@@ -107,7 +138,7 @@ const collide = (arena, player) => {
   return false;
 }
 
-const draw = () => {	
+draw = () => {	
 	// Re-render background every time
 	ctx.fillStyle = '#333';
 	ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -118,7 +149,7 @@ const draw = () => {
 }
 
 // force constant update
-const update = (time = 0) => {
+update = (time = 0) => {
 	// deltaTime = time since last update()
 	const deltaTime = time - lastTime;
 	lastTime = time;
@@ -133,12 +164,12 @@ const update = (time = 0) => {
 }
 
 // Render tetris piece by using fillRect
-const drawMatrix = (matrix, offset) => {
+drawMatrix = (matrix, offset) => {
 	matrix.forEach((row, y) => {
 		row.forEach((value, x) => {
 			// skip empty rows (matrix value = 0)
 			if(value) {
-					ctx.fillStyle = 'red';
+					ctx.fillStyle = COLORS[value];
 					ctx.fillRect(
 						x + offset.x,
 						y + offset.y,
@@ -149,7 +180,7 @@ const drawMatrix = (matrix, offset) => {
 	})
 }
 
-const merge = (arena, player) => {
+merge = (arena, player) => {
 	// add current piece to arena
 	player.matrix.forEach((row, y) => {
 		row.forEach((value, x) => {
@@ -164,9 +195,17 @@ playerReset = () => {
   player.matrix = createPiece();
   player.pos.y = 0;
   player.pos.x = (arena[0].length / 2 | 0) - (player.matrix[0].length / 2 | 0);
+
+  // Check if pieces are at the top (game over)
+  if (collide(arena, player)) {
+    alert('Game over!');
+    arena.forEach(row => row.fill(0));
+    player.score = 0;
+    updateScore();
+  }
 }
 
-const playerDrop = () => {  
+playerDrop = () => {  
   player.pos.y++;
   
   // Check if touching another piece or the ground
@@ -174,18 +213,20 @@ const playerDrop = () => {
     player.pos.y--;
     merge(arena, player);
     playerReset();
+    arenaSweep();
+    updateScore();
   };
 	dropCounter = 0;
 }
 
-const playerMoveX = x => {
+playerMoveX = x => {
   player.pos.x += x;
   if (collide(arena, player)) {
     player.pos.x -= x;
   }
 }
 
-const playerRotate = dir => {
+playerRotate = dir => {
   const pos = player.pos.x;
   let offset = 1;
   rotate(player.matrix, dir);
@@ -200,7 +241,7 @@ const playerRotate = dir => {
   }
 }
 
-const rotate = (matrix, dir) => {
+rotate = (matrix, dir) => {
   // Transpose + Reverse = rotate
   for (let y = 0; y < matrix.length; ++y) {
     for (let x = 0; x < y; ++x) {
@@ -222,7 +263,11 @@ const rotate = (matrix, dir) => {
   }
 }
 
-const onKeydown = (keyCode) => {
+updateScore = () => {
+  document.getElementsByClassName('score')[0].innerText = player.score;
+}
+
+onKeydown = (keyCode) => {
   // move player piece using left, right, down and space keys
   // rotate with 'q' and 'w'
 	switch (keyCode) {
@@ -243,7 +288,8 @@ const onKeydown = (keyCode) => {
 }
 
 initTetris = () => {
-	document.addEventListener('keydown', e => onKeydown(e.keyCode))
+  document.addEventListener('keydown', e => onKeydown(e.keyCode))
+  playerReset();
 	update();
 };
 
